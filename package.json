@@ -1,0 +1,30 @@
+{
+  "name": "dep-tree",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "dev:worker": "wrangler dev",
+    "build": "tsc -b && vite build",
+    "preview": "npm run build && wrangler dev",
+    "deploy": "npm run build && wrangler deploy",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "hono": "^4.6.3",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "semver": "^7.6.3"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240925.0",
+    "@types/react": "^18.3.11",
+    "@types/react-dom": "^18.3.0",
+    "@types/semver": "^7.5.8",
+    "@vitejs/plugin-react": "^4.3.2",
+    "typescript": "^5.6.2",
+    "vite": "^5.4.8",
+    "wrangler": "^4.80.0"
+  }
+}
