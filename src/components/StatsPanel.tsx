@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import type { DepGraph } from '../../shared/types';
-import type { Analysis, NodeStats } from '../lib/analyzer';
+import type { Analysis, Duplicate, NodeStats } from '../lib/analyzer';
 
 interface Props {
   graph: DepGraph;
@@ -9,8 +10,11 @@ interface Props {
   simCount: number;
   hovering: boolean;
   elapsed: number;
+  asOf?: string;
   impactList: Array<[string, NodeStats]>;
+  duplicates: Duplicate[];
   onToggle: (id: string) => void;
+  onJump: (id: string) => void;
   onReset: () => void;
 }
 
@@ -23,8 +27,11 @@ export default function StatsPanel(props: Props) {
     simCount,
     hovering,
     elapsed,
+    asOf,
     impactList,
+    duplicates,
     onToggle,
+    onJump,
     onReset,
   } = props;
   const saved = analysis.total - simCount;
@@ -38,7 +45,9 @@ export default function StatsPanel(props: Props) {
           {analysis.total}
           <span className="stat-unit">packages</span>
         </div>
-        <div className="stat-meta">resolved in {elapsed}ms</div>
+        <div className="stat-meta">
+          resolved in {elapsed}ms{asOf && <> · as of <b className="as-of-badge">{asOf}</b></>}
+        </div>
         {graph.truncated && <div className="stat-warn">⚠ graph truncated at 2000 nodes</div>}
       </div>
 
@@ -94,6 +103,10 @@ export default function StatsPanel(props: Props) {
         </ol>
       </div>
 
+      {duplicates.length > 0 && (
+        <DuplicatesCard duplicates={duplicates} rootId={graph.root} onJump={onJump} />
+      )}
+
       <div className="legend">
         <div>
           <b>unique</b> — transitive deps only this node brings in
@@ -106,5 +119,98 @@ export default function StatsPanel(props: Props) {
         </div>
       </div>
     </aside>
+  );
+}
+
+function DuplicatesCard({
+  duplicates,
+  rootId,
+  onJump,
+}: {
+  duplicates: Duplicate[];
+  rootId: string;
+  onJump: (id: string) => void;
+}) {
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [showAllDeps, setShowAllDeps] = useState(false);
+
+  const toggle = (id: string) => {
+    setExpanded((e) => (e === id ? null : id));
+    setShowAllDeps(false);
+  };
+
+  return (
+    <div className="stat-card scroll">
+      <div className="stat-label">
+        duplicate versions <span className="count">· {duplicates.length}</span>
+      </div>
+      <div className="dup-list">
+        {duplicates.map((d) => (
+          <div key={d.name} className="dup-row">
+            <div className="dup-name">{d.name}</div>
+            <div className="dup-versions">
+              {d.versions.map((v) => (
+                <button
+                  key={v.id}
+                  className={`dup-ver ${expanded === v.id ? 'active' : ''}`}
+                  onClick={() => toggle(v.id)}
+                  title={
+                    v.dependents.length
+                      ? `required by:\n${v.dependents.join('\n')}`
+                      : 'root dependency'
+                  }
+                >
+                  {v.version}
+                  <i>×{v.dependents.length}</i>
+                </button>
+              ))}
+            </div>
+            {d.versions.map((v) => {
+              if (expanded !== v.id) return null;
+              const pathParent = v.path[v.path.length - 2];
+              const others = v.dependents.filter((dep) => dep !== pathParent);
+              const shown = others.length <= 4 || showAllDeps ? others : others.slice(0, 4);
+              const hidden = others.length - shown.length;
+              return (
+                <div key={v.id} className="dup-path">
+                  {v.path.map((id, i) => (
+                    <button
+                      key={i}
+                      className={`dup-path-seg ${id === rootId ? 'root' : i === v.path.length - 1 ? 'target' : ''}`}
+                      style={{ paddingLeft: `${i * 10}px` }}
+                      onClick={() => onJump(id)}
+                      title="Show in tree"
+                    >
+                      {i > 0 && <span className="dup-path-arrow">└ </span>}
+                      {id}
+                    </button>
+                  ))}
+                  {others.length > 0 && (
+                    <div className="dup-path-more">
+                      <div className="dup-path-more-label">also required by</div>
+                      {shown.map((dep) => (
+                        <button
+                          key={dep}
+                          className="dup-path-seg"
+                          onClick={() => onJump(dep)}
+                          title="Show in tree"
+                        >
+                          {dep}
+                        </button>
+                      ))}
+                      {hidden > 0 && (
+                        <button className="dup-path-expand" onClick={() => setShowAllDeps(true)}>
+                          + {hidden} more
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

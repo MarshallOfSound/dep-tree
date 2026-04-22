@@ -104,7 +104,7 @@ body::before {
   flex: 1;
   display: flex;
   align-items: center;
-  max-width: 560px;
+  max-width: 780px;
   background: var(--bg-raise);
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -137,7 +137,68 @@ body::before {
   color: var(--muted-2);
 }
 
-.pkg-input button {
+.as-of {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border-left: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.as-of input[type='date'] {
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+  color-scheme: dark;
+  width: 130px;
+}
+
+.as-of input[type='date']:invalid,
+.as-of input[type='date']:placeholder-shown {
+  color: var(--muted-2);
+}
+
+.as-of.set {
+  color: var(--warn);
+}
+
+.as-of.set input[type='date'] {
+  color: var(--warn);
+}
+
+.as-of-clear {
+  background: none;
+  border: 1px solid var(--border-bright);
+  color: var(--muted);
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  font-size: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.as-of-clear:hover {
+  color: var(--text);
+  border-color: var(--text);
+}
+
+.as-of-badge {
+  color: var(--warn);
+  font-weight: 500;
+}
+
+.pkg-input button[type='submit'] {
   background: var(--accent);
   color: #001a0f;
   border: none;
@@ -151,11 +212,11 @@ body::before {
   font-size: 11px;
 }
 
-.pkg-input button:hover:not(:disabled) {
+.pkg-input button[type='submit']:hover:not(:disabled) {
   box-shadow: 0 0 16px rgba(0, 255, 179, 0.4);
 }
 
-.pkg-input button:disabled {
+.pkg-input button[type='submit']:disabled {
   opacity: 0.4;
   cursor: default;
 }
@@ -461,6 +522,145 @@ body::before {
   color: var(--danger);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+}
+
+.stat-label .count {
+  color: var(--warn);
+}
+
+.dup-list {
+  overflow-y: auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dup-row {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+}
+
+.dup-row:last-child {
+  border-bottom: none;
+}
+
+.dup-name {
+  font-size: 12px;
+  color: var(--text);
+  margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dup-versions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.dup-ver {
+  background: var(--bg-raise-2);
+  border: 1px solid var(--border-bright);
+  color: var(--text);
+  font: inherit;
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.dup-ver i {
+  font-style: normal;
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.dup-ver:hover {
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+.dup-ver.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(0, 255, 179, 0.08);
+}
+
+.dup-path {
+  margin-top: 8px;
+  padding: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+.dup-path-seg {
+  display: block;
+  width: 100%;
+  background: none;
+  border: none;
+  font: inherit;
+  text-align: left;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.6;
+  cursor: pointer;
+  border-radius: 3px;
+}
+
+.dup-path-seg:hover {
+  background: var(--bg-raise-2);
+  color: var(--text);
+}
+
+.dup-path-seg.root {
+  color: var(--text);
+}
+
+.dup-path-seg.target {
+  color: var(--warn);
+  font-weight: 500;
+}
+
+.dup-path-arrow {
+  color: var(--muted-2);
+}
+
+.dup-path-more {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--border);
+}
+
+.dup-path-more-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted-2);
+  margin-bottom: 3px;
+}
+
+.dup-path-expand {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+  padding: 2px 0;
+  margin-top: 2px;
+}
+
+.dup-path-expand:hover {
+  text-decoration: underline;
 }
 
 .legend {

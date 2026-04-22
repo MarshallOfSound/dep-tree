@@ -1,19 +1,30 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DepGraph, ResolveResponse } from '../shared/types';
-import { analyze, simulateRemoval, topImpact } from './lib/analyzer';
+import { analyze, findDuplicates, simulateRemoval, topImpact } from './lib/analyzer';
 import PackageInput from './components/PackageInput';
-import TreeView from './components/TreeView';
+import TreeView, { type TreeViewHandle } from './components/TreeView';
 import StatsPanel from './components/StatsPanel';
 
 type Status = 'idle' | 'loading' | 'ready' | 'error';
+
+function readUrl() {
+  const p = new URLSearchParams(location.search);
+  return {
+    name: p.get('name') ?? '',
+    version: p.get('version') ?? '',
+    asOf: p.get('asOf') ?? '',
+  };
+}
 
 export default function App() {
   const [status, setStatus] = useState<Status>('idle');
   const [error, setError] = useState<string>('');
   const [graph, setGraph] = useState<DepGraph | null>(null);
   const [elapsed, setElapsed] = useState(0);
+  const [asOf, setAsOf] = useState<string | undefined>();
   const [removed, setRemoved] = useState<Set<string>>(new Set());
   const [hover, setHover] = useState<string | null>(null);
+  const treeRef = useRef<TreeViewHandle>(null);
 
   const analysis = useMemo(() => (graph ? analyze(graph) : null), [graph]);
 
@@ -34,14 +45,21 @@ export default function App() {
     [graph, removed],
   );
 
-  const load = useCallback(async (name: string, version: string) => {
+  const load = useCallback(async (name: string, version: string, asOfDate?: string) => {
     setStatus('loading');
     setError('');
     setGraph(null);
     setRemoved(new Set());
     setHover(null);
+
+    const urlParams = new URLSearchParams({ name });
+    if (version && version !== 'latest') urlParams.set('version', version);
+    if (asOfDate) urlParams.set('asOf', asOfDate);
+    history.replaceState(null, '', `?${urlParams}`);
+
     try {
       const q = new URLSearchParams({ name, version: version || 'latest' });
+      if (asOfDate) q.set('asOf', asOfDate);
       const res = await fetch(`/api/resolve?${q}`);
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as { error?: string } | null;
@@ -50,11 +68,18 @@ export default function App() {
       const data = (await res.json()) as ResolveResponse;
       setGraph(data.graph);
       setElapsed(data.elapsedMs);
+      setAsOf(data.asOf);
       setStatus('ready');
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setStatus('error');
     }
+  }, []);
+
+  useEffect(() => {
+    const init = readUrl();
+    if (init.name) void load(init.name, init.version || 'latest', init.asOf || undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const toggleRemoved = useCallback((id: string) => {
@@ -71,6 +96,8 @@ export default function App() {
     [analysis, graph],
   );
 
+  const duplicates = useMemo(() => (graph ? findDuplicates(graph) : []), [graph]);
+
   return (
     <div className="app">
       <header className="header">
@@ -79,7 +106,7 @@ export default function App() {
           <h1>dep-tree</h1>
           <span className="brand-sub">npm dependency analyzer</span>
         </div>
-        <PackageInput onSubmit={load} loading={status === 'loading'} />
+        <PackageInput onSubmit={load} loading={status === 'loading'} initial={readUrl()} />
       </header>
 
       {status === 'idle' && (
@@ -119,11 +146,15 @@ export default function App() {
             simCount={simCount}
             hovering={!!hover && !removed.has(hover)}
             elapsed={elapsed}
+            asOf={asOf}
             impactList={impactList}
+            duplicates={duplicates}
             onToggle={toggleRemoved}
+            onJump={(id) => treeRef.current?.jumpTo(id)}
             onReset={() => setRemoved(new Set())}
           />
           <TreeView
+            ref={treeRef}
             graph={graph}
             analysis={analysis}
             removed={removed}

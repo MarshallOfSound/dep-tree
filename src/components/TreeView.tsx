@@ -1,4 +1,13 @@
-import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  forwardRef,
+  memo,
+  useCallback,
+  useImperativeHandle,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import type { DepGraph } from '../../shared/types';
 import type { Analysis } from '../lib/analyzer';
 
@@ -209,7 +218,14 @@ const Row = memo(function Row(props: RowProps) {
 
 const SORT_KEYS: SortKey[] = ['impact', 'unique', 'shared', 'refs'];
 
-export default function TreeView({ graph, analysis, removed, onToggle, onHover }: Props) {
+export interface TreeViewHandle {
+  jumpTo: (id: string) => void;
+}
+
+const TreeView = forwardRef<TreeViewHandle, Props>(function TreeView(
+  { graph, analysis, removed, onToggle, onHover },
+  ref,
+) {
   const built = useMemo(() => buildTree(graph), [graph]);
   const [sort, setSort] = useState<SortState>(null);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set([built.root.key]));
@@ -264,6 +280,8 @@ export default function TreeView({ graph, analysis, removed, onToggle, onHover }
     [built],
   );
 
+  useImperativeHandle(ref, () => ({ jumpTo: onJump }), [onJump]);
+
   useLayoutEffect(() => {
     if (!flash) return;
     const el = bodyRef.current?.querySelector(`[data-key="${CSS.escape(flash)}"]`);
@@ -310,4 +328,6 @@ export default function TreeView({ graph, analysis, removed, onToggle, onHover }
       </div>
     </section>
   );
-}
+});
+
+export default TreeView;

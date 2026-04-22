@@ -66,6 +66,84 @@ export function simulateRemoval(graph: DepGraph, removed: ReadonlySet<string>): 
   return reachable(graph, graph.root, removed);
 }
 
+export interface Duplicate {
+  name: string;
+  versions: Array<{ id: string; version: string; dependents: string[]; path: string[] }>;
+}
+
+function shortestPaths(graph: DepGraph): Map<string, string> {
+  const parent = new Map<string, string>();
+  const queue = [graph.root];
+  const seen = new Set([graph.root]);
+  while (queue.length) {
+    const id = queue.shift()!;
+    for (const dep of graph.nodes[id]?.dependencies ?? []) {
+      if (seen.has(dep)) continue;
+      seen.add(dep);
+      parent.set(dep, id);
+      queue.push(dep);
+    }
+  }
+  return parent;
+}
+
+function pathTo(parent: Map<string, string>, target: string): string[] {
+  const path = [target];
+  let cur = target;
+  while (parent.has(cur)) {
+    cur = parent.get(cur)!;
+    path.push(cur);
+  }
+  return path.reverse();
+}
+
+export function findDuplicates(graph: DepGraph): Duplicate[] {
+  const byName = new Map<string, string[]>();
+  for (const [id, node] of Object.entries(graph.nodes)) {
+    const list = byName.get(node.name) ?? [];
+    list.push(id);
+    byName.set(node.name, list);
+  }
+
+  const dependentsOf = new Map<string, string[]>();
+  for (const [id, node] of Object.entries(graph.nodes)) {
+    for (const dep of node.dependencies) {
+      const list = dependentsOf.get(dep) ?? [];
+      list.push(id);
+      dependentsOf.set(dep, list);
+    }
+  }
+
+  const parent = shortestPaths(graph);
+  const dupNames = new Set([...byName].filter(([, ids]) => ids.length > 1).map(([n]) => n));
+
+  const dups: Duplicate[] = [];
+  for (const [name, ids] of byName) {
+    if (ids.length < 2) continue;
+    const versions = ids
+      .map((id) => ({
+        id,
+        version: graph.nodes[id].version,
+        dependents: dependentsOf.get(id) ?? [],
+        path: pathTo(parent, id),
+      }))
+      .sort((a, b) => b.dependents.length - a.dependents.length);
+
+    // A duplicate is "derived" if every version's path passes through some OTHER
+    // duplicated package — i.e. it's a downstream consequence of an upstream dup.
+    const derived = versions.every((v) =>
+      v.path.slice(1, -1).some((mid) => {
+        const midName = graph.nodes[mid]?.name;
+        return midName !== name && dupNames.has(midName);
+      }),
+    );
+    if (derived) continue;
+
+    dups.push({ name, versions });
+  }
+  return dups.sort((a, b) => b.versions.length - a.versions.length || a.name.localeCompare(b.name));
+}
+
 export function topImpact(analysis: Analysis, rootId: string, n: number): Array<[string, NodeStats]> {
   return [...analysis.stats.entries()]
     .filter(([id]) => id !== rootId)

@@ -9,6 +9,7 @@ interface Packument {
   name: string;
   'dist-tags': Record<string, string>;
   versions: Record<string, { name: string; version: string; dependencies?: Record<string, string> }>;
+  time?: Record<string, string>;
 }
 
 interface Ctx {
@@ -17,6 +18,7 @@ interface Ctx {
   inFlight: Map<string, Promise<void>>;
   cfCache: Cache | undefined;
   truncated: boolean;
+  asOf: number | null;
 }
 
 async function fetchPackument(ctx: Ctx, name: string): Promise<Packument> {
@@ -25,9 +27,8 @@ async function fetchPackument(ctx: Ctx, name: string): Promise<Packument> {
 
   const p = (async () => {
     const url = `${REGISTRY}/${encodeURIComponent(name).replace('%40', '@').replace('%2F', '/')}`;
-    const req = new Request(url, {
-      headers: { Accept: 'application/vnd.npm.install-v1+json' },
-    });
+    const accept = ctx.asOf !== null ? 'application/json' : 'application/vnd.npm.install-v1+json';
+    const req = new Request(url, { headers: { Accept: accept } });
 
     let res: Response | undefined;
     if (ctx.cfCache) res = await ctx.cfCache.match(req);
@@ -47,12 +48,29 @@ async function fetchPackument(ctx: Ctx, name: string): Promise<Packument> {
   return p;
 }
 
-function resolveVersion(packument: Packument, range: string): string | null {
-  const distTag = packument['dist-tags']?.[range];
-  if (distTag) return distTag;
+function eligibleVersions(packument: Packument, asOf: number | null): string[] {
+  const all = Object.keys(packument.versions);
+  if (asOf === null) return all;
+  const time = packument.time ?? {};
+  return all.filter((v) => {
+    const t = time[v];
+    return t ? Date.parse(t) <= asOf : false;
+  });
+}
+
+function resolveVersion(packument: Packument, range: string, asOf: number | null): string | null {
+  const versions = eligibleVersions(packument, asOf);
+  if (!versions.length) return null;
+
+  if (asOf === null) {
+    const distTag = packument['dist-tags']?.[range];
+    if (distTag) return distTag;
+  } else if (range === 'latest' || range === '*' || range === '') {
+    const sorted = semver.rsort(versions.filter((v) => !semver.prerelease(v)));
+    return sorted[0] ?? semver.rsort(versions)[0] ?? null;
+  }
 
   const clean = range.replace(/^npm:.*@/, '');
-  const versions = Object.keys(packument.versions);
   return semver.maxSatisfying(versions, clean, { includePrerelease: false, loose: true });
 }
 
@@ -69,7 +87,9 @@ async function resolveNode(ctx: Ctx, name: string, range: string): Promise<strin
     return null;
   }
 
-  const version = resolveVersion(packument, range) ?? packument['dist-tags']?.latest;
+  const version =
+    resolveVersion(packument, range, ctx.asOf) ??
+    (ctx.asOf === null ? packument['dist-tags']?.latest : null);
   if (!version) return null;
 
   const id = `${name}@${version}`;
@@ -109,6 +129,7 @@ export async function resolve(
   name: string,
   range: string,
   cfCache: Cache | undefined,
+  asOf: number | null = null,
 ): Promise<DepGraph> {
   const ctx: Ctx = {
     nodes: new Map(),
@@ -116,10 +137,26 @@ export async function resolve(
     inFlight: new Map(),
     cfCache,
     truncated: false,
+    asOf,
   };
 
   const rootId = await resolveNode(ctx, name, range);
-  if (!rootId) throw new Error(`Could not resolve ${name}@${range}`);
+  if (!rootId) {
+    if (asOf !== null) {
+      const dateStr = new Date(asOf).toISOString().slice(0, 10);
+      const packument = await ctx.packumentCache.get(name)?.catch(() => null);
+      const tagTarget = packument?.['dist-tags']?.[range];
+      if (tagTarget) {
+        throw new Error(
+          `Dist-tag "${range}" points to ${tagTarget} today, but npm doesn't track tag history — clear the "as of" date or use an explicit version/range`,
+        );
+      }
+      throw new Error(
+        `Impossible to compute graph on this date — no version of ${name} matching "${range}" was published on or before ${dateStr}`,
+      );
+    }
+    throw new Error(`Could not resolve ${name}@${range}`);
+  }
 
   return {
     root: rootId,

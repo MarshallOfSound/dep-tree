@@ -13,4 +13,5 @@ export interface DepGraph {
 export interface ResolveResponse {
   graph: DepGraph;
   elapsedMs: number;
+  asOf?: string;
 }
